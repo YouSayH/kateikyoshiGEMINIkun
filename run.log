@@ -1,0 +1,225 @@
+データベーステーブルの初期化（キーワードカラム含む）を確認・完了しました。
+YOLOモデル 'C:\Users\baagu\Desktop\kateikyoushi\study-assist-app\models\best12-2.pt' の読み込みに成功しました。(信頼度閾値: 0.5)
+STTワーカーが起動しました。
+Visual Observer(指揮官)が起動しました。（30秒間隔）
+セッションID 8 のキーワード抽出タスクを開始します。
+セッションID 8 のタイトル生成タスクを開始します。
+Gemini API (text) 呼び出し中にエラー: 429 You exceeded your current quota, please check your plan and billing details. For more information on this error, head to: https://ai.google.dev/gemini-api/docs/rate-limits. [violations {
+  quota_metric: "generativelanguage.googleapis.com/generate_content_free_tier_requests"
+  quota_id: "GenerateRequestsPerDayPerProjectPerModel-FreeTier"
+  quota_dimensions {
+    key: "model"
+    value: "gemini-2.5-flash"
+  }
+  quota_dimensions {
+    key: "location"
+    value: "global"
+  }
+  quota_value: 250
+}
+, links {
+  description: "Learn more about Gemini API quotas"
+  url: "https://ai.google.dev/gemini-api/docs/rate-limits"
+}
+, retry_delay {
+  seconds: 44
+}
+]
+Gemini API (text) 呼び出し中にエラー: 429 You exceeded your current quota, please check your plan and billing details. For more information on this error, head to: https://ai.google.dev/gemini-api/docs/rate-limits. [violations {
+  quota_metric: "generativelanguage.googleapis.com/generate_content_free_tier_requests"
+  quota_id: "GenerateRequestsPerDayPerProjectPerModel-FreeTier"
+  quota_dimensions {
+    key: "model"
+    value: "gemini-2.5-flash"
+  }
+  quota_dimensions {
+    key: "location"
+    value: "global"
+  }
+  quota_value: 250
+}
+, links {
+  description: "Learn more about Gemini API quotas"
+  url: "https://ai.google.dev/gemini-api/docs/rate-limits"
+}
+, retry_delay {
+  seconds: 44
+}
+]
+パース後のキーワード: 250
+セッションID 8 のキーワードを更新しました: 250
+セッションID 8 のタイトルを更新しました: エラーが発生しました: 429 You exceeded your current quota, please check your plan and billing details. For more information on this error, head to: https://ai.google.dev/gemini-api/docs/rate-limits. [violations {
+  quota_metric: generativelanguage.googleapis.com/generate_content_free_tier_requests
+  quota_id: GenerateRequestsPerDayPerProjectPerModel-FreeTier
+  quota_dimensions {
+    key: model
+    value: gemini-2.5-flash
+  }
+  quota_dimensions {
+    key: location
+    value: global
+  }
+  quota_value: 250
+}
+, links {
+  description: Learn more about Gemini API quotas
+  url: https://ai.google.dev/gemini-api/docs/rate-limits
+}
+, retry_delay {
+  seconds: 44
+}
+]
+セッションID 7 のキーワード抽出タスクを開始します。
+セッションID 7 のタイトル生成タスクを開始します。
+Gemini API (text) 呼び出し中にエラー: 429 You exceeded your current quota, please check your plan and billing details. For more information on this error, head to: https://ai.google.dev/gemini-api/docs/rate-limits. [violations {
+  quota_metric: "generativelanguage.googleapis.com/generate_content_free_tier_requests"
+  quota_id: "GenerateRequestsPerDayPerProjectPerModel-FreeTier"
+  quota_dimensions {
+    key: "model"
+    value: "gemini-2.5-flash"
+  }
+  quota_dimensions {
+    key: "location"
+    value: "global"
+  }
+  quota_value: 250
+}
+, links {
+  description: "Learn more about Gemini API quotas"
+  url: "https://ai.google.dev/gemini-api/docs/rate-limits"
+}
+, retry_delay {
+  seconds: 41
+}
+]
+Gemini API (text) 呼び出し中にエラー: 429 You exceeded your current quota, please check your plan and billing details. For more information on this error, head to: https://ai.google.dev/gemini-api/docs/rate-limits. [violations {
+  quota_metric: "generativelanguage.googleapis.com/generate_content_free_tier_requests"
+  quota_id: "GenerateRequestsPerDayPerProjectPerModel-FreeTier"
+  quota_dimensions {
+    key: "model"
+    value: "gemini-2.5-flash"
+  }
+  quota_dimensions {
+    key: "location"
+    value: "global"
+  }
+  quota_value: 250
+}
+, links {
+  description: "Learn more about Gemini API quotas"
+  url: "https://ai.google.dev/gemini-api/docs/rate-limits"
+}
+, retry_delay {
+  seconds: 41
+}
+]
+パース後のキーワード: 250
+セッションID 7 のキーワードを更新しました: 250
+セッションID 7 のタイトルを更新しました: エラーが発生しました: 429 You exceeded your current quota, please check your plan and billing details. For more information on this error, head to: https://ai.google.dev/gemini-api/docs/rate-limits. [violations {
+  quota_metric: generativelanguage.googleapis.com/generate_content_free_tier_requests
+  quota_id: GenerateRequestsPerDayPerProjectPerModel-FreeTier
+  quota_dimensions {
+    key: model
+    value: gemini-2.5-flash
+  }
+  quota_dimensions {
+    key: location
+    value: global
+  }
+  quota_value: 250
+}
+, links {
+  description: Learn more about Gemini API quotas
+  url: https://ai.google.dev/gemini-api/docs/rate-limits
+}
+, retry_delay {
+  seconds: 41
+}
+]
+15秒間、手の活動がありませんでした。
+セッションID 8 のキーワード抽出タスクを開始します。
+セッションID 8 のタイトル生成タスクを開始します。
+Gemini API (text) 呼び出し中にエラー: 429 You exceeded your current quota, please check your plan and billing details. For more information on this error, head to: https://ai.google.dev/gemini-api/docs/rate-limits. [violations {
+  quota_metric: "generativelanguage.googleapis.com/generate_content_free_tier_requests"
+  quota_id: "GenerateRequestsPerDayPerProjectPerModel-FreeTier"
+  quota_dimensions {
+    key: "model"
+    value: "gemini-2.5-flash"
+  }
+  quota_dimensions {
+    key: "location"
+    value: "global"
+  }
+  quota_value: 250
+}
+, links {
+  description: "Learn more about Gemini API quotas"
+  url: "https://ai.google.dev/gemini-api/docs/rate-limits"
+}
+, retry_delay {
+  seconds: 37
+}
+]
+セッションID 8 のタイトルを更新しました: エラーが発生しました: 429 You exceeded your current quota, please check your plan and billing details. For more information on this error, head to: https://ai.google.dev/gemini-api/docs/rate-limits. [violations {
+  quota_metric: generativelanguage.googleapis.com/generate_content_free_tier_requests
+  quota_id: GenerateRequestsPerDayPerProjectPerModel-FreeTier
+  quota_dimensions {
+    key: model
+    value: gemini-2.5-flash
+  }
+  quota_dimensions {
+    key: location
+    value: global
+  }
+  quota_value: 250
+}
+, links {
+  description: Learn more about Gemini API quotas
+  url: https://ai.google.dev/gemini-api/docs/rate-limits
+}
+, retry_delay {
+  seconds: 37
+}
+]
+パース後のキーワード: 自然対数、対数、微積分、部分積分、恒等式
+セッションID 8 のキーワードを更新しました: 自然対数、対数、微積分、部分積分、恒等式
+「あら、手が止まっていますね。どうかしまし...」を読み上げます。
+アプリケーションの終了処理を開始します...
+セッションID 7 のキーワード抽出タスクを開始します。
+最後のキーワード抽出タスクの完了を待っています...
+Gemini API (text) 呼び出し中にエラー: 429 You exceeded your current quota, please check your plan and billing details. For more information on this error, head to: https://ai.google.dev/gemini-api/docs/rate-limits. [violations {
+  quota_metric: "generativelanguage.googleapis.com/generate_content_free_tier_requests"
+  quota_id: "GenerateRequestsPerDayPerProjectPerModel-FreeTier"
+  quota_dimensions {
+    key: "model"
+    value: "gemini-2.5-flash"
+  }
+  quota_dimensions {
+    key: "location"
+    value: "global"
+  }
+  quota_value: 250
+}
+, links {
+  description: "Learn more about Gemini API quotas"
+  url: "https://ai.google.dev/gemini-api/docs/rate-limits"
+}
+, retry_delay {
+  seconds: 26
+}
+]
+ワーカースレッドを停止します...
+カメラを解放しました。
+ > CameraWorker 停止完了
+STTワーカーを停止しました。
+ > STTWorker 停止完了
+読み上げ停止命令を受信しました。
+TTSワーカーを停止しました。
+ > TTSWorker 停止完了
+Visual Observer(指揮官)の停止処理を開始します。
+Visual Observer: メインループを終了しました。
+ > VisualObserverWorker 停止完了
+データベースワーカーを停止します...
+ > DatabaseWorker 停止完了
+すべてのワーカースレッドが安全に停止しました。
+パース後のキーワード: 250
