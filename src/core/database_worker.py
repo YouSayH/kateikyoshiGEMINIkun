@@ -1,5 +1,3 @@
-# src/core/database_worker.py　スレッド名自動設定
-
 from PySide6.QtCore import QThread, Signal, Slot
 from typing import Any
 from .database_manager import DatabaseManager
@@ -57,8 +55,13 @@ class DatabaseWorker(QThread):
         """セッションタイトル更新タスクをキューに入れる"""
         self.tasks.append((self.db_manager.update_session_title, (session_id, new_title), {}))
 
+    @Slot(int, str)
+    def update_session_summary(self, session_id: int, summary: str):
+        """セッション要約更新タスクをキューに入れる"""
+        self.tasks.append((self.db_manager.update_session_summary, (session_id, summary), {}))
+
     def stop(self):
         """スレッドを安全に停止させる"""
         print("データベースワーカーを停止します...")
         self._is_running = False
-        # wait()は呼び出し元のMainWindowで行う
+        self.wait()

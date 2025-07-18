@@ -144,7 +144,7 @@ class SettingsDialog(QDialog):
             self.add_default_models()
 
     def add_default_models(self):
-        default_models = ["gemini-1.5-flash", "gemini-1.5-pro"]
+        default_models = ["gemini-2.5-flash", "gemini-2.5-flash"]
         for selector in [self.keyword_model_selector, self.main_response_model_selector, self.vision_model_selector]:
             selector.addItems(default_models)
 
