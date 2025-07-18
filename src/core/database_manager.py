@@ -1,5 +1,3 @@
-# src/core/database_manager.py スレッド名の自動設定
-
 import sqlite3
 import os
 from datetime import datetime, timedelta
@@ -237,3 +235,12 @@ class DatabaseManager:
         conn.commit()
         conn.close()
         print(f"セッションID {session_id} のタイトルを更新しました: {new_title}")
+
+    def update_session_summary(self, session_id: int, summary: str):
+        """指定されたセッションの会話要約を更新する"""
+        conn = self._get_connection()
+        cursor = conn.cursor()
+        cursor.execute("UPDATE sessions SET chat_summary = ? WHERE id = ?", (summary, session_id))
+        conn.commit()
+        conn.close()
+        print(f"セッションID {session_id} の要約を更新しました。")
