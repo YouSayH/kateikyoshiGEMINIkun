@@ -87,7 +87,7 @@ class SettingsManager:
     # --- プロンプト設定 ---
     @property
     def hand_stopped_prompt(self) -> str:
-        return self._get_prompt("hand_stopped", "あなたは優しい家庭教師です。生徒の手が止まっています。「どうかしましたか？」など、優しく声をかけてください。")
+        return self._get_prompt("hand_stopped", "あなたは優しい家庭教師です。生徒の手が止まっています。「どうかしましたか？」など、優しく声をかけてください。また、セリフのみを表示してください。(セリフは1つでかまいません。)")
     @hand_stopped_prompt.setter
     def hand_stopped_prompt(self, value: str):
         self._set_prompt("hand_stopped", value)
@@ -116,12 +116,26 @@ class SettingsManager:
         
     @property
     def observation_prompt(self) -> str:
-        return self._get_prompt("observation", """あなたはユーザーの勉強の様子を観察するAIです。
-以下の画像は現在のユーザーの机の様子です。
-前回の観察結果は「{previous_description}」でした。
-現在の画像と前回の結果を比較し、ユーザーの行動に何か特筆すべき変化があれば簡潔に報告してください。
-例: 「新しい数式を書き始めたようです」「問題の特定の部分を指差しています」など。
-特に大きな変化がなければ「特に変化はありません」と報告してください。""")
+        return self._get_prompt("observation", """あなたは、生徒がノートに書いている内容を正確に読み取るための、高度なOCRアシスタントです。
+
+# あなたのタスク
+1. 添付された画像は、生徒のノートの現在の状態です。この画像から、書かれているテキスト、数式、図を可能な限り正確に、すべて書き出してください。
+2. その際、前回の観測結果である以下のテキストと比較してください。
+   【前回の観測結果】
+   {previous_description}
+3. 比較した結果、新たに追加された、あるいは大幅に書き換えられた部分だけを報告してください。もし、ほとんど変化がない場合は「特に新しい書き込みはありません。」と報告してください。
+
+# 出力形式のルール
+- 新しく追加された内容が明確にわかるように記述してください。
+- 数式はKaTeX形式（`$$...$$`や`$...$`）で正確に表現してください。""")
+                                
+#         return self._get_prompt("observation", """あなたはユーザーの勉強の様子を観察するAIです。
+# 以下の画像は現在のユーザーの机の様子です。
+# 前回の観察結果は「{previous_description}」でした。
+# 現在の画像と前回の結果を比較し、ユーザーの行動に何か特筆すべき変化があれば簡潔に報告してください。
+# 例: 「新しい数式を書き始めたようです」「問題の特定の部分を指差しています」など。
+# 特に大きな変化がなければ「特に変化はありません」と報告してください。""")
+
     @observation_prompt.setter
     def observation_prompt(self, value: str):
         self._set_prompt("observation", value)
@@ -129,21 +143,21 @@ class SettingsManager:
     # --- モデル設定 ---
     @property
     def keyword_extraction_model(self) -> str:
-        return self._get_model("keyword_extraction", "gemini-1.5-flash")
+        return self._get_model("keyword_extraction", "gemini-2.5-flash")
     @keyword_extraction_model.setter
     def keyword_extraction_model(self, value: str):
         self._set_model("keyword_extraction", value)
 
     @property
     def main_response_model(self) -> str:
-        return self._get_model("main_response", "gemini-1.5-flash")
+        return self._get_model("main_response", "gemini-2.5-flash")
     @main_response_model.setter
     def main_response_model(self, value: str):
         self._set_model("main_response", value)
 
     @property
     def vision_model(self) -> str:
-        return self._get_model("vision", "gemini-1.5-flash")
+        return self._get_model("vision", "gemini-2.5-flash")
     @vision_model.setter
     def vision_model(self, value: str):
         self._set_model("vision", value)

@@ -1,6 +1,6 @@
-# src/core/gemini_client.py  geminiモデル選択&プロンプトの微調整# src/core/gemini_client.py
+# src/core/gemini_client.py
 
-import google.generativeai as genai
+# google.generativeaiは遅延インポートするため、トップレベルではインポートしない
 from ..utils.config import GEMINI_API_KEY_FROM_ENV
 from .settings_manager import SettingsManager
 from PIL import Image
@@ -18,9 +18,11 @@ class GeminiClient:
     def __init__(self, text_model_name: str = None, vision_model_name: str = None):
         """
         Geminiモデルを初期化する。
-        APIキーはまず設定から読み込み、なければ.envファイルから読み込む。
-        モデル名は引数で指定されていればそれを使い、なければ設定から読み込む。
+        ライブラリのインポートは初回利用時に遅延して行われる。
         """
+        import google.generativeai as genai
+        print("genaiをimportしました。")
+
         settings = SettingsManager()
         api_key = settings.api_key
         if not api_key:
@@ -35,11 +37,9 @@ class GeminiClient:
         try:
             genai.configure(api_key=api_key)
             
-            # 使用するモデル名を決定
             final_text_model_name = text_model_name if text_model_name else settings.main_response_model
             final_vision_model_name = vision_model_name if vision_model_name else settings.vision_model
 
-            # モデルを初期化
             self.text_model = genai.GenerativeModel(final_text_model_name, safety_settings=SAFETY_SETTINGS)
             self.vision_model = genai.GenerativeModel(final_vision_model_name, safety_settings=SAFETY_SETTINGS)
             print(f"GeminiClient初期化完了 (Text: {final_text_model_name}, Vision: {final_vision_model_name})")
@@ -49,32 +49,44 @@ class GeminiClient:
             self.text_model = None
             self.vision_model = None
 
-    def generate_response(self, prompt: str) -> str:
-        """テキストベースのプロンプトに応答を生成する"""
+    def generate_response(self, prompt: str, timeout: int = None) -> str:
+        """
+        テキストベースのプロンプトに応答を生成する。
+        timeout（秒）が指定された場合、その時間内に応答がなければエラーを返す。
+        """
         if not self.text_model:
             return "エラー: AIテキストモデルが初期化されていません。APIキーを確認してください。"
             
         try:
-            response = self.text_model.generate_content(prompt)
+            request_options = {"timeout": timeout} if timeout is not None else {}
+            response = self.text_model.generate_content(prompt, request_options=request_options)
+
             if response.parts:
                 return response.text
             else:
+                # 応答がブロックされた場合の詳細情報をログに出力
                 print("Gemini API (text) 応答がブロックされました。Finish Reason:", response.prompt_feedback)
                 return "AIの応答がセーフティ機能によってブロックされました。プロンプトの内容を変えてもう一度お試しください。"
         except Exception as e:
             print(f"Gemini API (text) 呼び出し中にエラー: {e}")
             return f"エラーが発生しました: {e}"
 
-    def generate_vision_response(self, prompt_parts: List[Any]) -> str:
-        """テキストと画像のリストに基づいて応答を生成する"""
+    def generate_vision_response(self, prompt_parts: List[Any], timeout: int = None) -> str:
+        """
+        テキストと画像のリストに基づいて応答を生成する。
+        timeout（秒）が指定された場合、その時間内に応答がなければエラーを返す。
+        """
         if not self.vision_model:
             return "エラー: AI Visionモデルが初期化されていません。APIキーを確認してください。"
 
         try:
-            response = self.vision_model.generate_content(prompt_parts)
+            request_options = {"timeout": timeout} if timeout is not None else {}
+            response = self.vision_model.generate_content(prompt_parts, request_options=request_options)
+
             if response.parts:
                 return response.text
             else:
+                # 応答がブロックされた場合の詳細情報をログに出力
                 print("Gemini API (vision) 応答がブロックされました。Finish Reason:", response.prompt_feedback)
                 return "AIの応答がセーフティ機能によってブロックされました。プロンプトの内容を変えてもう一度お試しください。"
         except Exception as e:
