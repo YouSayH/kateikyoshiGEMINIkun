@@ -1,9 +1,4 @@
-
-
-
-
-# 設定変更(再起不要版)
-
+# src/core/visual_observer.py
 
 from PySide6.QtCore import QThread, Signal, Slot
 from PIL import Image
@@ -24,7 +19,6 @@ class ObservationTaskWorker(QThread):
         description = ""
         try:
             settings = SettingsManager()
-            # プロパティ形式でプロンプトを取得
             prompt_template = settings.observation_prompt
             prompt = prompt_template.format(previous_description=self.previous_description)
             
@@ -45,7 +39,6 @@ class VisualObserverWorker(QThread):
         super().__init__(parent)
         
         settings = SettingsManager()
-        # プロパティ形式でモデル名を取得
         self.gemini_client = GeminiClient(vision_model_name=settings.vision_model)
         
         self.interval = interval_sec
@@ -56,16 +49,14 @@ class VisualObserverWorker(QThread):
         self.task_worker: Optional[ObservationTaskWorker] = None
 
     def run(self):
-        print(f"Visual Observer(指揮官)が起動しました。") # 初回起動メッセージ
+        print(f"Visual Observer(指揮官)が起動しました。")
         while self._is_running:
-            # 常に self.interval を参照するようにループを調整
             current_interval = self.interval 
             
             if not self._is_task_running and self.latest_frame is not None:
                 print(f"Visual Observer: 次の観測まで {current_interval} 秒待機します。")
                 self.trigger_observation_task()
             
-            # 1秒ごとに停止フラグを確認しながら待機
             for _ in range(current_interval):
                 if not self._is_running:
                     break
@@ -76,19 +67,31 @@ class VisualObserverWorker(QThread):
     def trigger_observation_task(self):
         self._is_task_running = True
         print("Visual Observer(指揮官): 実行部隊に出撃を命令！")
-        frame_copy = self.latest_frame.copy()
-        
-        self.task_worker = ObservationTaskWorker(
-            self.gemini_client, frame_copy, self.previous_description
-        )
-        self.task_worker.task_finished.connect(self.on_task_finished)
-        self.task_worker.finished.connect(self.task_worker.deleteLater)
-        self.task_worker.start()
+        if self.latest_frame:
+            frame_copy = self.latest_frame.copy()
+            self.task_worker = ObservationTaskWorker(
+                self.gemini_client, frame_copy, self.previous_description
+            )
+            self.task_worker.task_finished.connect(self.on_task_finished)
+            self.task_worker.finished.connect(self.task_worker.deleteLater)
+            self.task_worker.start()
+        else:
+            self._is_task_running = False
+
 
     @Slot(str)
     def on_task_finished(self, description: str):
         print("Visual Observer(指揮官): 実行部隊が帰還。報告を受理しました。")
-        if description and "特に変化はありません" not in description and "エラーが発生しました" not in description:
+        
+        # 新しい説明が前回と異なり、かつ特定のキーワードを含まないことを確認
+        is_significant_change = (
+            description and
+            description != self.previous_description and
+            "特に変化はありません" not in description and
+            "エラーが発生しました" not in description
+        )
+
+        if is_significant_change:
             print(f"Visual Observer(指揮官): 有意な変化を検出、本部に報告します: {description}")
             self.observation_ready.emit(description)
             self.previous_description = description
@@ -101,7 +104,6 @@ class VisualObserverWorker(QThread):
 
     @Slot(int)
     def set_observation_interval(self, seconds: int):
-        """定点観測の間隔を更新するスロット"""
         print(f"定点観測の間隔を {seconds} 秒に更新しました。")
         self.interval = seconds
 

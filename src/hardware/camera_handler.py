@@ -6,7 +6,7 @@ import numpy as np
 from PySide6.QtCore import QThread, Signal, Slot
 from PySide6.QtGui import QImage
 from PIL import Image as PILImage
-from ultralytics import YOLO
+# from ultralytics import YOLO # モデル読み込み時にimport
 from typing import List, Dict, Any
 
 class CameraWorker(QThread):
@@ -49,6 +49,8 @@ class CameraWorker(QThread):
     def run(self):
         """スレッドのメインループ"""
         if self.model is None:
+            from ultralytics import YOLO
+            print("ultralytics(YOLOライブラリ)をインポート")
             print(f"CameraWorker: YOLOモデル '{self.model_path}' をバックグラウンドで読み込みます...")
             try:
                 self.model = YOLO(self.model_path)
