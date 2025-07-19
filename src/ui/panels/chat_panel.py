@@ -2,14 +2,13 @@
 
 import os
 from PySide6.QtCore import Signal, QSize
-# --- ▼▼▼ ここを修正 ▼▼▼ ---
 from PySide6.QtGui import QMovie, QTextCursor
-# --- ▲▲▲ ここまで修正 ▲▲▲ ---
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QTextEdit, QPushButton, QLabel,
     QHBoxLayout, QCheckBox, QStackedLayout
 )
 from ..widgets.md_view import MarkdownView
+from typing import List, Dict
 
 class ChatPanel(QWidget):
     # --- このパネルが発信するシグナル ---
@@ -91,8 +90,13 @@ class ChatPanel(QWidget):
             self.user_input.clear()
 
     # --- MainWindowから呼び出されるためのメソッド群 ---
-    def set_markdown(self, md_text: str):
-        self.ai_output_view.set_markdown(md_text)
+
+    def set_messages(self, messages: List[Dict[str, str]], scroll_to_bottom: bool):
+        """
+        メッセージのリストとスクロール設定を受け取り、MarkdownViewに渡す。
+        （以前の set_markdown はこのメソッドに置き換えられました）
+        """
+        self.ai_output_view.set_messages(messages, scroll_to_bottom)
 
     def set_thinking_mode(self, thinking: bool):
         if thinking:
