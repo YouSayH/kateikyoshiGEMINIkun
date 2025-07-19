@@ -22,7 +22,7 @@ class ChatPanel(QWidget):
         super().__init__(parent)
         self.setMinimumSize(400, 300)
 
-        # --- UIの構築 (main_windowから移動) ---
+        # --- UIの構築 ---
         project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', '..'))
         
         layout = QVBoxLayout(self)
@@ -91,12 +91,15 @@ class ChatPanel(QWidget):
 
     # --- MainWindowから呼び出されるためのメソッド群 ---
 
-    def set_messages(self, messages: List[Dict[str, str]], scroll_to_bottom: bool):
-        """
-        メッセージのリストとスクロール設定を受け取り、MarkdownViewに渡す。
-        （以前の set_markdown はこのメソッドに置き換えられました）
-        """
-        self.ai_output_view.set_messages(messages, scroll_to_bottom)
+    # ▼▼▼ 変更点 1/2: set_messages の引数を修正 ▼▼▼
+    # 全件表示用のメソッド
+    def set_messages(self, messages: List[Dict[str, str]]):
+        self.ai_output_view.set_messages(messages)
+
+    # ▼▼▼ 変更点 2/2: add_message メソッドを追加 ▼▼▼
+    # 1件動的追加用のメソッド
+    def add_message(self, message: Dict, scroll: bool):
+        self.ai_output_view.add_message(message, scroll)
 
     def set_thinking_mode(self, thinking: bool):
         if thinking:

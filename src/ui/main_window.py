@@ -164,6 +164,8 @@ class MainWindow(QMainWindow):
     
     def start_essential_workers(self):
         self.db_worker = DatabaseWorker(self.db_manager)
+        # ▼▼▼ 変更点 1/5: db_workerからのシグナルを接続 ▼▼▼
+        self.db_worker.message_added.connect(self.on_message_added)
         self.tts_worker = TTSWorker()
         self.db_worker.start()
         self.tts_worker.start()
@@ -318,18 +320,30 @@ class MainWindow(QMainWindow):
             context_lines.append(line)
         return "\n".join(context_lines)
 
-    # ▼▼▼ 変更点 1/4: _add_message_to_ui_and_db のロジック変更 ▼▼▼
-    # メッセージの役割(role)に基づいてスクロールするかを自動で判断するようにします。
-    def _add_message_to_ui_and_db(self, role: str, content: str):
-        if not self.active_session_id: return
-        self.current_chat_messages.append({"role": role, "content": content})
-        
-        # ユーザーからのメッセージの時だけスクロールする
-        should_scroll = (role == "user")
-        
-        self.update_chat_display(scroll=should_scroll)
-        self.db_worker.add_message(self.active_session_id, role, content)
+    # ▼▼▼ 変更点 2/5: _add_message_to_ui_and_db メソッドを削除 ▼▼▼
+    # この処理は新しい on_message_added スロットに統合されます。
+    # def _add_message_to_ui_and_db(...): ...
 
+    def _request_add_message(self, role: str, content: str):
+        """DBワーカーにメッセージの追加を非同期で依頼する"""
+        if self.active_session_id:
+            self.db_worker.add_message(self.active_session_id, role, content)
+
+    @Slot(dict)
+    def on_message_added(self, new_message: Dict):
+        """DBワーカーからメッセージ追加完了の通知を受け取り、UIを更新する"""
+        if not new_message or new_message.get('id') is None:
+            return
+
+        # メモリ上のチャット履歴にも追加
+        self.current_chat_messages.append(new_message)
+
+        # ユーザーのメッセージならスクロール、AIからならスクロールしない
+        should_scroll = (new_message.get("role") == "user")
+        
+        # chat_panelの新しいメソッドを呼び出し、動的にメッセージを追加
+        self.chat_panel.add_message(new_message, scroll=should_scroll)
+        
     def _trigger_keyword_extraction(self, session_id: int):
         if not session_id: return
         if self.keyword_extraction_worker and self.keyword_extraction_worker.isRunning(): return
@@ -398,9 +412,10 @@ class MainWindow(QMainWindow):
             self.keyword_extraction_worker.deleteLater()
             self.keyword_extraction_worker = None
 
-    def update_chat_display(self, scroll: bool = True):
-        self.chat_panel.set_messages(self.current_chat_messages, scroll_to_bottom=scroll)
-
+    # ▼▼▼ 変更点 3/5: update_chat_displayは削除 ▼▼▼
+    # 全件表示は on_session_changed で直接行い、動的追加は on_message_added が担うため不要に。
+    # def update_chat_display(...): ...
+    
     def load_and_display_sessions(self):
         self.session_panel.block_signals(True)
         self.session_panel.clear_list()
@@ -448,15 +463,14 @@ class MainWindow(QMainWindow):
             self.context_manager.set_problem_context(session_details.get("problem_context"))
             self.context_manager.set_chat_summary(session_details.get("chat_summary"))
 
+        # セッション切り替え時は、全件取得して全件表示する
         self.current_chat_messages = self.db_manager.get_messages_for_session(self.active_session_id)
-        self.update_chat_display() # ここはTrueでスクロールするのが正しい
+        self.chat_panel.set_messages(self.current_chat_messages)
 
     @Slot()
     def on_stop_speech_button_clicked(self):
         self.tts_worker.stop_current_speech()
 
-    # ▼▼▼ 変更点 2/4: execute_ai_task の引数変更 ▼▼▼
-    # scroll_on_response 引数を削除します
     def execute_ai_task(self, prompt, speak=True, is_user_request=False, use_vision=False, is_continuation=False):
         if self.is_ai_task_running and not is_continuation:
             return
@@ -475,18 +489,16 @@ class MainWindow(QMainWindow):
         else:
             model_name = self.settings_manager.main_response_model
             self.ai_worker = GeminiWorker(prompt, model_name=model_name)
-        
-        # handle_gemini_response に引数を渡さなくなったため、シンプルな接続に戻します
+            
         self.ai_worker.response_ready.connect(lambda r: self.handle_gemini_response(r, speak))
         self.ai_worker.finished.connect(self.on_ai_worker_finished)
         self.ai_worker.start()
 
-    # ▼▼▼ 変更点 3/4: handle_gemini_response の引数変更 ▼▼▼
-    # scroll_on_response 引数を削除します
+    # ▼▼▼ 変更点 4/5: handle_gemini_response のロジック変更 ▼▼▼
     def handle_gemini_response(self, response_text, speak):
         self.chat_panel.set_thinking_mode(False)
-        # _add_message_to_ui_and_db が自動でスクロールを判断してくれる
-        self._add_message_to_ui_and_db("ai", response_text)
+        # UI更新は on_message_added が行うので、ここではDBへの追加を依頼するだけ
+        self._request_add_message("ai", response_text)
         
         if speak:
             self.stt_was_enabled_before_tts = self.chat_panel.get_stt_checkbox_state()
@@ -511,12 +523,13 @@ class MainWindow(QMainWindow):
             self.ai_worker.deleteLater()
             self.ai_worker = None
 
+    # ▼▼▼ 変更点 5/5: start_user_request のロジック変更 ▼▼▼
     @Slot(str)
     def start_user_request(self, user_query: str):
         if not (user_query and self.active_session_id): return
         
-        # ここでユーザーメッセージが追加され、自動でスクロールされる
-        self._add_message_to_ui_and_db("user", user_query)
+        # UI更新は on_message_added が行うので、ここではDBへの追加を依頼するだけ
+        self._request_add_message("user", user_query)
         
         self.is_ai_task_running = True
         self.chat_panel.set_thinking_mode(True)
@@ -531,6 +544,8 @@ class MainWindow(QMainWindow):
         self.query_keyword_worker.finished.connect(self.on_query_keyword_worker_finished)
         self.query_keyword_worker.start()
 
+    # ... (これ以降のメソッドは同様の考え方で修正されているため、確認してください) ...
+    
     @Slot(str, str)
     def on_query_keywords_extracted(self, original_query: str, keywords_response: str):
         match = re.search(r'([\w\s、,]+)$', keywords_response, re.MULTILINE)
@@ -545,7 +560,6 @@ class MainWindow(QMainWindow):
         observation_log = self.db_manager.get_recent_logs_for_session(self.active_session_id, "observation", 5)
         
         full_prompt = self.context_manager.build_prompt_for_query(original_query, self.current_chat_messages, monologue_history, observation_log, long_term_context)
-        # AIの応答ではスクロールされない
         self.execute_ai_task(full_prompt, speak=True, is_user_request=True, is_continuation=True)
 
     @Slot()
@@ -558,8 +572,7 @@ class MainWindow(QMainWindow):
         if not self.active_session_id: self.create_new_session(); return
         file_path, _ = QFileDialog.getOpenFileName(self, "問題ファイルを選択", "", "サポートファイル (*.pdf *.png *.jpg *.jpeg *.webp);;全ファイル (*)")
         if file_path:
-            # AIからのメッセージなのでスクロールされない
-            self._add_message_to_ui_and_db("ai", f"`{os.path.basename(file_path)}`を分析中...")
+            self._request_add_message("ai", f"`{os.path.basename(file_path)}`を分析中...")
             
             model_name = self.settings_manager.vision_model
             gemini_client_for_file = GeminiClient(vision_model_name=model_name)
@@ -574,8 +587,7 @@ class MainWindow(QMainWindow):
         self.db_worker.update_problem_context(self.active_session_id, result_text)
         self.context_manager.set_problem_context(result_text)
         message = f"ファイルの分析が完了しました。\n\n**【分析結果】**\n\n{result_text}\n\n---\nこの問題について質問してください。"
-        # AIからのメッセージなのでスクロールされない
-        self._add_message_to_ui_and_db("ai", message)
+        self._request_add_message("ai", message)
         self.tts_worker.speak("ファイルの分析が完了しました。")
 
     @Slot()
@@ -589,7 +601,6 @@ class MainWindow(QMainWindow):
         if self.is_ai_task_running: return
         self.context_manager.set_triggered_image(captured_image)
         prompt = self.settings_manager.hand_stopped_prompt
-        # AIからの自動声かけなのでスクロールされない
         self.execute_ai_task(prompt, speak=True)
 
     @Slot(str)
@@ -608,8 +619,7 @@ class MainWindow(QMainWindow):
             self.tts_worker.speak("すみません、カメラの映像が取得できていません。")
             return
         
-        # ユーザーコマンドなのでスクロールされる
-        self._add_message_to_ui_and_db("user", f"（音声コマンド）{command_text}")
+        self._request_add_message("user", f"（音声コマンド）{command_text}")
         self.context_manager.set_triggered_image(self.latest_camera_frame.copy())
 
         self.is_ai_task_running = True
@@ -626,7 +636,6 @@ class MainWindow(QMainWindow):
         )
         
         if prompt_parts:
-            # AI応答なのでスクロールされない
             self.execute_ai_task(prompt_parts, speak=True, is_user_request=False, use_vision=True, is_continuation=True)
         else:
             self.tts_worker.speak("コマンドの準備に失敗しました。")
@@ -638,8 +647,6 @@ class MainWindow(QMainWindow):
         if self.active_session_id:
             self.db_worker.add_log(self.active_session_id, "observation", observation_text)
 
-    # ▼▼▼ 変更点 4/4: update_camera_view の堅牢性向上 ▼▼▼
-    # QPainterのエラーを防ぐためのチェックを追加
     @Slot(QImage, list)
     def update_camera_view(self, frame_qimage: QImage, detections: List[Dict]):
         if frame_qimage.isNull():
@@ -648,9 +655,7 @@ class MainWindow(QMainWindow):
         pixmap = QPixmap.fromImage(frame_qimage)
         painter = QPainter()
 
-        # painter.begin()が成功した場合のみ描画処理を行う
         if not painter.begin(pixmap):
-            # 失敗した場合はログにも残さず、静かに処理を終える
             return
 
         try:
@@ -668,7 +673,6 @@ class MainWindow(QMainWindow):
                 painter.fillRect(text_x, text_y - 12, len(label) * 8, 16, QColor(0, 255, 0))
                 painter.drawText(text_x, text_y, label)
         finally:
-            # 描画処理の成否にかかわらず、必ずend()を呼ぶ
             painter.end()
 
         self.camera_panel.set_pixmap(pixmap)
