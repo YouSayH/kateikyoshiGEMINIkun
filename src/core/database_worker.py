@@ -1,3 +1,5 @@
+# src/core/database_worker.py
+
 from PySide6.QtCore import QThread, Signal, Slot
 from typing import Any
 from .database_manager import DatabaseManager
@@ -8,6 +10,9 @@ class DatabaseWorker(QThread):
     UIスレッドのブロックを防ぐ。
     """
     error = Signal(str)
+    # ▼▼▼ 追加 ▼▼▼
+    # メッセージがDBに追加完了したことを、そのメッセージデータと共に通知するシグナル
+    message_added = Signal(dict)
 
     def __init__(self, db_manager: DatabaseManager, parent=None):
         super().__init__(parent)
@@ -22,7 +27,18 @@ class DatabaseWorker(QThread):
             if self.tasks:
                 func, args, kwargs = self.tasks.pop(0)
                 try:
-                    func(*args, **kwargs)
+                    # ▼▼▼ 変更 ▼▼▼
+                    # 実行するタスクがメッセージ追加の場合、特別に処理する
+                    # (funcがdb_managerのadd_messageメソッドであるかをチェック)
+                    if func == self.db_manager.add_message:
+                        new_message_data = func(*args, **kwargs)
+                        if new_message_data:
+                            # 成功したら、新しいメッセージデータをシグナルで発信
+                            self.message_added.emit(new_message_data)
+                    else:
+                        # それ以外のタスクは通常通り実行
+                        func(*args, **kwargs)
+
                 except Exception as e:
                     error_message = f"データベース書き込みエラー: {e}"
                     print(error_message)

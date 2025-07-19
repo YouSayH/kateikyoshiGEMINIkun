@@ -1,3 +1,5 @@
+# src/core/database_manager.py
+
 import sqlite3
 import os
 from datetime import datetime, timedelta
@@ -115,18 +117,27 @@ class DatabaseManager:
         conn.close()
         return sessions
 
-    def add_message(self, session_id: int, role: str, content: str):
-        """指定されたセッションに新しいメッセージを追加する"""
+    # ▼▼▼ 変更点 1/2: add_message メソッドに戻り値を追加 ▼▼▼
+    # 新しく追加したメッセージのIDとタイムスタンプを返すようにします。
+    def add_message(self, session_id: int, role: str, content: str) -> Optional[Dict]:
+        """指定されたセッションに新しいメッセージを追加し、そのメッセージ情報を返す"""
         now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         conn = self._get_connection()
         cursor = conn.cursor()
-        cursor.execute(
-            "INSERT INTO messages (session_id, role, content, timestamp) VALUES (?, ?, ?, ?)",
-            (session_id, role, content, now)
-        )
-        conn.commit()
-        conn.close()
-        self._update_session_timestamp(session_id)
+        try:
+            cursor.execute(
+                "INSERT INTO messages (session_id, role, content, timestamp) VALUES (?, ?, ?, ?)",
+                (session_id, role, content, now)
+            )
+            message_id = cursor.lastrowid
+            conn.commit()
+            self._update_session_timestamp(session_id) # タイムスタンプ更新はここで行う
+            return {"id": message_id, "role": role, "content": content, "timestamp": now}
+        except Exception as e:
+            print(f"メッセージ追加エラー: {e}")
+            return None
+        finally:
+            conn.close()
         
     def add_log(self, session_id: int, log_type: str, content: str):
         """独り言や定点観測ログをDBに保存する"""
@@ -141,12 +152,16 @@ class DatabaseManager:
         conn.close()
         self._update_session_timestamp(session_id)
 
+    # ▼▼▼ 変更点 2/2: get_messages_for_session メソッドの修正 ▼▼▼
+    # これまでの role, content に加えて、メッセージのユニークIDである `id` も取得します。
     def get_messages_for_session(self, session_id: int) -> List[Dict[str, str]]:
-        """指定されたセッションの全メッセージを取得する"""
+        """指定されたセッションの全メッセージを(id, role, content)の辞書リストで取得する"""
         conn = self._get_connection()
         cursor = conn.cursor()
-        cursor.execute("SELECT role, content FROM messages WHERE session_id = ? ORDER BY timestamp ASC", (session_id,))
-        messages = [{"role": row[0], "content": row[1]} for row in cursor.fetchall()]
+        # SELECT句に `id` を追加
+        cursor.execute("SELECT id, role, content FROM messages WHERE session_id = ? ORDER BY timestamp ASC", (session_id,))
+        # 辞書を作成する際に `id` も含める
+        messages = [{"id": row[0], "role": row[1], "content": row[2]} for row in cursor.fetchall()]
         conn.close()
         return messages
 
