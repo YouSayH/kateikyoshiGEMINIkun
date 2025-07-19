@@ -7,18 +7,12 @@ from PySide6.QtCore import Slot, QObject, Signal
 from PySide6.QtWebEngineWidgets import QWebEngineView
 from PySide6.QtWebChannel import QWebChannel
 
+# QWebChannelとBridgeは将来の「再生成」ボタン等のために残しておきます
 class Bridge(QObject):
-    """PythonとJavaScriptの通信を仲介するブリッジオブジェクト"""
-    copy_requested = Signal(int, str) # contentも渡すように変更
     regenerate_requested = Signal(int)
     good_rating_requested = Signal(int)
     bad_rating_requested = Signal(int)
 
-    def __init__(self, parent=None):
-        super().__init__(parent)
-    
-    @Slot(int, str)
-    def on_copy_requested(self, msg_id: int, content: str): self.copy_requested.emit(msg_id, content)
     @Slot(int)
     def on_regenerate_requested(self, msg_id: int): self.regenerate_requested.emit(msg_id)
     @Slot(int)
@@ -50,7 +44,7 @@ class MarkdownView(QWebEngineView):
             <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js" integrity="sha384-XjKyOOlGwcjNTAIQHIpgOno0Hl1YQqzUOEleOLALmuqehneUG+vnGctmUb0ZY0l8" crossorigin="anonymous"></script>
             <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/contrib/auto-render.min.js" integrity="sha384-+VBxd3r6XgURycqtZ117nYw44OOcIax56Z4dCRWbxyPt0Koah1uHoK0o4+/RRE05" crossorigin="anonymous"></script>
             <style>
-                :root { --user-bg-color: #4a4a66; --ai-bg-color: #363642; --text-color: #D3D3D3; --background-color: #2B2B2B; --code-bg-color: #424242; --pre-bg-color: #333333; --button-bg-color: #4f4f66; --button-hover-bg-color: #6a6a88; }
+                :root { --user-bg-color: #4a4a66; --ai-bg-color: #363642; --text-color: #D3D3D3; --background-color: #2B2B2B; --code-bg-color: #1E1E1E; --pre-bg-color: #1E1E1E; --button-bg-color: #4f4f66; --button-hover-bg-color: #6a6a88; }
                 body { font-family: 'Segoe UI', 'Meiryo', sans-serif; background-color: var(--background-color); color: var(--text-color); padding: 1em; line-height: 1.7; font-size: 16px; overflow-x: hidden; }
                 #chat-container { padding-bottom: 50px; }
                 .message-wrapper { display: flex; align-items: flex-start; margin-bottom: 0.5em; max-width: 95%; }
@@ -65,13 +59,34 @@ class MarkdownView(QWebEngineView):
                 .message-wrapper.ai .message-bubble { border-bottom-left-radius: 4px; }
                 .message-bubble p:first-child { margin-top: 0; }
                 .message-bubble p:last-child { margin-bottom: 0; }
-                .toolbar { display: flex; justify-content: flex-end; padding: 4px 8px 0 0; opacity: 0; transition: opacity 0.2s; height: 0; overflow: hidden; }
-                .message-content:hover .toolbar { opacity: 1; height: auto; }
-                .toolbar button { background: var(--button-bg-color); border: none; color: var(--text-color); padding: 4px 8px; border-radius: 4px; cursor: pointer; margin-left: 5px; font-size: 12px; }
-                .toolbar button:hover { background: var(--button-hover-bg-color); }
-                code { background-color: var(--code-bg-color); padding: 0.2em 0.4em; margin: 0; font-size: 85%; border-radius: 6px; font-family: Consolas, 'Courier New', monospace;}
-                pre { background-color: var(--pre-bg-color); padding: 1em; border-radius: 8px; overflow-x: auto; border: 1px solid #444;}
-                pre > code {padding: 0; background-color: transparent; border-radius: 0; border: none;}
+                pre { position: relative; background-color: var(--pre-bg-color); padding: 1em; padding-top: 2.5em; border-radius: 8px; overflow-x: auto; border: 1px solid #444; }
+                
+                /* ▼▼▼ CSSの変更箇所 ▼▼▼ */
+                .copy-button {
+                    position: absolute;
+                    top: 8px;
+                    right: 8px;
+                    background: var(--button-bg-color);
+                    color: var(--text-color);
+                    border: none;
+                    padding: 4px 10px;
+                    border-radius: 6px;
+                    cursor: pointer;
+                    font-size: 12px;
+                    /* JSで制御するための初期状態 */
+                    opacity: 0;
+                    pointer-events: none;
+                    transition: opacity 0.2s ease-in-out;
+                }
+                .copy-button.visible {
+                    opacity: 1;
+                    pointer-events: auto;
+                }
+                /* ▲▲▲ CSSの変更箇所 ▲▲▲ */
+                
+                .copy-button:hover { background: var(--button-hover-bg-color); }
+                code { font-family: Consolas, 'Courier New', monospace; font-size: 85%; }
+                pre > code { padding: 0; background-color: transparent; border-radius: 0; border: none; }
                 .katex-display { overflow-x: auto; overflow-y: hidden; padding: 0.5em 0; }
             </style>
         </head>
@@ -79,66 +94,85 @@ class MarkdownView(QWebEngineView):
             <div id="chat-container"></div>
             <script>
                 let qtBridge;
-                // ▼▼▼ 修正点 1/3: {{}} を {} に修正 ▼▼▼
-                new QWebChannel(qt.webChannelTransport, function (channel) {
-                    qtBridge = channel.objects.bridge;
-                });
+                new QWebChannel(qt.webChannelTransport, function (channel) { qtBridge = channel.objects.bridge; });
+
+                /* ▼▼▼ JavaScriptの変更箇所 ▼▼▼ */
+                function copyCodeToClipboard(button, codeText) {
+                    const textArea = document.createElement('textarea');
+                    textArea.value = codeText;
+                    textArea.style.position = 'fixed';
+                    textArea.style.top = '-9999px';
+                    textArea.style.left = '-9999px';
+                    document.body.appendChild(textArea);
+                    textArea.select();
+                    try {
+                        document.execCommand('copy');
+                        button.innerText = 'コピーしました！';
+                    } catch (err) {
+                        console.error('コピーに失敗しました', err);
+                        button.innerText = '失敗';
+                    }
+                    document.body.removeChild(textArea);
+                    setTimeout(() => { button.innerText = 'コピー'; }, 2000);
+                }
+
+                function addCopyButtons(element) {
+                    const codeBlocks = element.querySelectorAll('pre');
+                    codeBlocks.forEach(block => {
+                        if (block.querySelector('.copy-button')) { return; }
+                        const button = document.createElement('button');
+                        button.className = 'copy-button';
+                        button.innerText = 'コピー';
+                        const code = block.querySelector('code').innerText;
+                        
+                        button.addEventListener('click', () => {
+                            copyCodeToClipboard(button, code);
+                        });
+                        
+                        // JavaScriptでマウスイベントを直接制御
+                        block.addEventListener('mouseenter', () => {
+                            button.classList.add('visible');
+                        });
+                        block.addEventListener('mouseleave', () => {
+                            button.classList.remove('visible');
+                        });
+                        
+                        block.appendChild(button);
+                    });
+                }
+                /* ▲▲▲ JavaScriptの変更箇所 ▲▲▲ */
 
                 function createMessageElement(msg) {
                     const wrapper = document.createElement('div');
                     wrapper.className = `message-wrapper ${msg.role}`;
                     wrapper.id = `message-${msg.id}`;
-                    
                     const contentDiv = document.createElement('div');
                     contentDiv.className = 'message-content';
-
                     const bubble = document.createElement('div');
                     bubble.className = 'message-bubble';
                     bubble.innerHTML = msg.html_content;
-                    
                     contentDiv.appendChild(bubble);
-
                     const avatar = document.createElement('div');
                     avatar.className = 'avatar';
                     avatar.textContent = (msg.role === 'user') ? 'U' : 'A';
-
-                    if (msg.role === 'user') {
-                        wrapper.appendChild(contentDiv);
-                        wrapper.appendChild(avatar);
-                    } else {
-                        wrapper.appendChild(avatar);
-                        wrapper.appendChild(contentDiv);
-                    }
+                    if (msg.role === 'user') { wrapper.appendChild(contentDiv); wrapper.appendChild(avatar); }
+                    else { wrapper.appendChild(avatar); wrapper.appendChild(contentDiv); }
                     return wrapper;
                 }
-
                 window.set_all_messages = function(messages) {
                     const container = document.getElementById('chat-container');
                     container.innerHTML = '';
                     messages.forEach(msg => { container.appendChild(createMessageElement(msg)); });
-                    // ▼▼▼ 修正点 2/3: {{}} を {} に修正 ▼▼▼
-                    renderMathInElement(container, {
-                        delimiters: [
-                            {left: "$$", right: "$$", display: true},
-                            {left: "$", right: "$", display: false}
-                        ],
-                        throwOnError: false
-                    });
+                    renderMathInElement(container, { delimiters: [ {left: "$$", right: "$$", display: true}, {left: "$", right: "$", display: false} ], throwOnError: false });
+                    addCopyButtons(container);
                     window.scrollTo(0, document.body.scrollHeight);
                 }
-
                 window.append_message = function(msg, scroll) {
                     const container = document.getElementById('chat-container');
                     const el = createMessageElement(msg);
                     container.appendChild(el);
-                    // ▼▼▼ 修正点 3/3: {{}} を {} に修正 ▼▼▼
-                    renderMathInElement(el, {
-                        delimiters: [
-                            {left: "$$", right: "$$", display: true},
-                            {left: "$", right: "$", display: false}
-                        ],
-                        throwOnError: false
-                    });
+                    renderMathInElement(el, { delimiters: [ {left: "$$", right: "$$", display: true}, {left: "$", right: "$", display: false} ], throwOnError: false });
+                    addCopyButtons(el);
                     if (scroll) { window.scrollTo(0, document.body.scrollHeight); }
                 }
             </script>
@@ -150,19 +184,16 @@ class MarkdownView(QWebEngineView):
 
     @Slot()
     def _on_load_finished(self):
-        """ページの読み込みが完了したら呼ばれる"""
         self._page_loaded = True
         self._process_js_queue()
 
     def _run_or_queue_js(self, js_code: str):
-        """ページの準備ができていればJSを実行し、できていなければキューに入れる"""
         if self._page_loaded:
             self.page().runJavaScript(js_code)
         else:
             self._js_call_queue.append(js_code)
 
     def _process_js_queue(self):
-        """キュー内のJS命令を順番に実行する"""
         if self._page_loaded:
             for code in self._js_call_queue:
                 self.page().runJavaScript(code)
@@ -170,23 +201,16 @@ class MarkdownView(QWebEngineView):
             
     def _convert_message_to_js_format(self, message: Dict) -> Dict:
         html_content = markdown.markdown(message.get("content", ""), extensions=['fenced_code', 'tables'])
-        return {
-            "id": message.get("id"),
-            "role": message.get("role"),
-            "content": message.get("content"), # 生のテキストも渡す
-            "html_content": html_content
-        }
+        return { "id": message.get("id"), "role": message.get("role"), "content": message.get("content"), "html_content": html_content }
 
     @Slot(list)
     def set_messages(self, messages: List[Dict]):
-        """（初回読み込み用）チャット履歴全体をセットする命令をキューに入れる"""
         js_messages = [self._convert_message_to_js_format(m) for m in messages]
         js_code = f"window.set_all_messages({json.dumps(js_messages)});"
         self._run_or_queue_js(js_code)
 
     @Slot(dict, bool)
     def add_message(self, message: Dict, scroll: bool):
-        """（動的追加用）新しいメッセージを1件追加する命令をキューに入れる"""
         js_message = self._convert_message_to_js_format(message)
         js_code = f"window.append_message({json.dumps(js_message)}, {str(scroll).lower()});"
         self._run_or_queue_js(js_code)

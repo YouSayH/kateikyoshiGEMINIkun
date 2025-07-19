@@ -8,7 +8,7 @@ from PIL import Image
 from PySide6.QtCore import QThread, Signal, Slot, QSize, Qt, QTimer
 from PySide6.QtGui import QPixmap, QImage, QPainter, QColor, QPen, QFont, QAction
 from PySide6.QtWidgets import (
-    QMainWindow, QWidget, QListWidgetItem, QDockWidget, QFileDialog
+    QMainWindow, QWidget, QListWidgetItem, QDockWidget, QFileDialog, QApplication
 )
 from typing import Optional, List, Dict
 
@@ -81,6 +81,8 @@ class MainWindow(QMainWindow):
         self.setWindowTitle("勉強アシストアプリ")
         self.setGeometry(100, 100, 1600, 900)
         
+        self.statusBar().showMessage("準備完了")
+
         self.is_ai_task_running = False
         self.context_manager = ContextManager()
         self.settings_manager = SettingsManager()
@@ -150,6 +152,9 @@ class MainWindow(QMainWindow):
         self.chat_panel.camera_toggled.connect(self.on_camera_enabled_changed)
         self.chat_panel.stt_toggled.connect(self.on_stt_enabled_changed)
 
+        # ▼▼▼ 変更点 1/2: 不要になったシグナル接続を削除 ▼▼▼
+        # self.chat_panel.ai_output_view.bridge.copy_requested.connect(self.on_copy_requested)
+
     def create_menu(self):
         menu_bar = self.menuBar()
         file_menu = menu_bar.addMenu("ファイル")
@@ -164,7 +169,6 @@ class MainWindow(QMainWindow):
     
     def start_essential_workers(self):
         self.db_worker = DatabaseWorker(self.db_manager)
-        # ▼▼▼ 変更点 1/5: db_workerからのシグナルを接続 ▼▼▼
         self.db_worker.message_added.connect(self.on_message_added)
         self.tts_worker = TTSWorker()
         self.db_worker.start()
@@ -256,6 +260,10 @@ class MainWindow(QMainWindow):
     def on_stt_enabled_changed(self, enabled: bool):
         if self.stt_worker:
             self.stt_worker.set_enabled(enabled)
+            
+    # ▼▼▼ 変更点 2/2: 不要になったスロットを削除 ▼▼▼
+    # @Slot(int, str)
+    # def on_copy_requested(self, msg_id: int, content: str): ...
 
     def _trigger_summary_generation(self, session_id: int):
         if not session_id: return
@@ -320,28 +328,15 @@ class MainWindow(QMainWindow):
             context_lines.append(line)
         return "\n".join(context_lines)
 
-    # ▼▼▼ 変更点 2/5: _add_message_to_ui_and_db メソッドを削除 ▼▼▼
-    # この処理は新しい on_message_added スロットに統合されます。
-    # def _add_message_to_ui_and_db(...): ...
-
     def _request_add_message(self, role: str, content: str):
-        """DBワーカーにメッセージの追加を非同期で依頼する"""
         if self.active_session_id:
             self.db_worker.add_message(self.active_session_id, role, content)
 
     @Slot(dict)
     def on_message_added(self, new_message: Dict):
-        """DBワーカーからメッセージ追加完了の通知を受け取り、UIを更新する"""
-        if not new_message or new_message.get('id') is None:
-            return
-
-        # メモリ上のチャット履歴にも追加
+        if not new_message or new_message.get('id') is None: return
         self.current_chat_messages.append(new_message)
-
-        # ユーザーのメッセージならスクロール、AIからならスクロールしない
         should_scroll = (new_message.get("role") == "user")
-        
-        # chat_panelの新しいメソッドを呼び出し、動的にメッセージを追加
         self.chat_panel.add_message(new_message, scroll=should_scroll)
         
     def _trigger_keyword_extraction(self, session_id: int):
@@ -350,10 +345,8 @@ class MainWindow(QMainWindow):
         messages = self.db_manager.get_messages_for_session(session_id)
         if len(messages) < 4: return
         conversation_text = "\n".join([f"{m['role']}: {m['content']}" for m in messages])
-        
         prompt_template = self.settings_manager.keyword_extraction_from_history_prompt
         prompt = prompt_template.format(conversation_text=conversation_text)
-        
         model_name = self.settings_manager.keyword_extraction_model
         self.keyword_extraction_worker = GeminiWorker(prompt, model_name=model_name)
         self.keyword_extraction_worker.response_ready.connect(lambda keywords: self.on_keywords_extracted(session_id, keywords))
@@ -366,10 +359,8 @@ class MainWindow(QMainWindow):
         messages = self.db_manager.get_messages_for_session(session_id)
         if len(messages) < 4: return
         conversation_text = "\n".join([f"{m['role']}: {m['content']}" for m in messages])
-        
         prompt_template = self.settings_manager.title_generation_prompt
         prompt = prompt_template.format(conversation_text=conversation_text)
-        
         model_name = self.settings_manager.keyword_extraction_model
         self.title_generation_worker = GeminiWorker(prompt, model_name=model_name)
         self.title_generation_worker.response_ready.connect(lambda title: self.on_title_generated(session_id, title))
@@ -377,7 +368,6 @@ class MainWindow(QMainWindow):
         self.title_generation_worker.start()
 
     def _run_session_post_processing(self, session_id: int):
-        """タイマーによって呼び出され、セッションの後処理を実行する"""
         print(f"セッションID {session_id} の後処理（キーワード、タイトル、要約）を開始します。")
         self._trigger_keyword_extraction(session_id)
         self._trigger_title_generation(session_id)
@@ -411,10 +401,6 @@ class MainWindow(QMainWindow):
         if self.keyword_extraction_worker:
             self.keyword_extraction_worker.deleteLater()
             self.keyword_extraction_worker = None
-
-    # ▼▼▼ 変更点 3/5: update_chat_displayは削除 ▼▼▼
-    # 全件表示は on_session_changed で直接行い、動的追加は on_message_added が担うため不要に。
-    # def update_chat_display(...): ...
     
     def load_and_display_sessions(self):
         self.session_panel.block_signals(True)
@@ -445,25 +431,18 @@ class MainWindow(QMainWindow):
     @Slot(QListWidgetItem, QListWidgetItem)
     def on_session_changed(self, current_item: QListWidgetItem, previous_item: QListWidgetItem):
         self.session_post_process_timer.stop()
-
         if previous_item:
             previous_session_id = previous_item.data(Qt.UserRole)
-            self.session_post_process_timer.timeout.connect(
-                lambda: self._run_session_post_processing(previous_session_id)
-            )
+            self.session_post_process_timer.timeout.connect(lambda: self._run_session_post_processing(previous_session_id))
             self.session_post_process_timer.start(2000)
-            
         if not current_item: return
         session_id = current_item.data(Qt.UserRole)
         if session_id == self.active_session_id: return
         self.active_session_id = session_id
-        
         session_details = self.db_manager.get_session_details(session_id)
         if session_details:
             self.context_manager.set_problem_context(session_details.get("problem_context"))
             self.context_manager.set_chat_summary(session_details.get("chat_summary"))
-
-        # セッション切り替え時は、全件取得して全件表示する
         self.current_chat_messages = self.db_manager.get_messages_for_session(self.active_session_id)
         self.chat_panel.set_messages(self.current_chat_messages)
 
@@ -472,38 +451,28 @@ class MainWindow(QMainWindow):
         self.tts_worker.stop_current_speech()
 
     def execute_ai_task(self, prompt, speak=True, is_user_request=False, use_vision=False, is_continuation=False):
-        if self.is_ai_task_running and not is_continuation:
-            return
+        if self.is_ai_task_running and not is_continuation: return
         if not is_continuation:
             self.is_ai_task_running = True
             self.chat_panel.set_thinking_mode(True)
-            
-        if is_user_request:
-            pass 
-        if speak:
-            self.chat_panel.show_stop_speech_button(True)
-            
+        if is_user_request: pass 
+        if speak: self.chat_panel.show_stop_speech_button(True)
         if use_vision:
             model_name = self.settings_manager.vision_model
             self.ai_worker = GeminiVisionWorker(prompt, model_name=model_name)
         else:
             model_name = self.settings_manager.main_response_model
             self.ai_worker = GeminiWorker(prompt, model_name=model_name)
-            
         self.ai_worker.response_ready.connect(lambda r: self.handle_gemini_response(r, speak))
         self.ai_worker.finished.connect(self.on_ai_worker_finished)
         self.ai_worker.start()
 
-    # ▼▼▼ 変更点 4/5: handle_gemini_response のロジック変更 ▼▼▼
     def handle_gemini_response(self, response_text, speak):
         self.chat_panel.set_thinking_mode(False)
-        # UI更新は on_message_added が行うので、ここではDBへの追加を依頼するだけ
         self._request_add_message("ai", response_text)
-        
         if speak:
             self.stt_was_enabled_before_tts = self.chat_panel.get_stt_checkbox_state()
-            if self.stt_was_enabled_before_tts:
-                self.chat_panel.set_stt_checkbox_state(False)
+            if self.stt_was_enabled_before_tts: self.chat_panel.set_stt_checkbox_state(False)
             self.tts_worker.speak(response_text)
         else:
             self.is_ai_task_running = False
@@ -513,9 +482,7 @@ class MainWindow(QMainWindow):
     def on_speech_finished(self):
         self.is_ai_task_running = False
         self.chat_panel.show_stop_speech_button(False)
-        
-        if self.stt_was_enabled_before_tts:
-            self.chat_panel.set_stt_checkbox_state(True)
+        if self.stt_was_enabled_before_tts: self.chat_panel.set_stt_checkbox_state(True)
         
     @Slot()
     def on_ai_worker_finished(self):
@@ -523,42 +490,30 @@ class MainWindow(QMainWindow):
             self.ai_worker.deleteLater()
             self.ai_worker = None
 
-    # ▼▼▼ 変更点 5/5: start_user_request のロジック変更 ▼▼▼
     @Slot(str)
     def start_user_request(self, user_query: str):
         if not (user_query and self.active_session_id): return
-        
-        # UI更新は on_message_added が行うので、ここではDBへの追加を依頼するだけ
         self._request_add_message("user", user_query)
-        
         self.is_ai_task_running = True
         self.chat_panel.set_thinking_mode(True)
-        
         self._trigger_summary_generation(self.active_session_id)
-        
         prompt = f"""以下の質問文から、中心となるキーワードを3つ、カンマ区切りで抽出してください。思考プロセスは不要です。キーワードのみを出力してください。\n例: 積分、グラフ、面積\n\n---\n{user_query}"""
-        
         model_name = self.settings_manager.keyword_extraction_model
         self.query_keyword_worker = GeminiWorker(prompt, model_name=model_name)
         self.query_keyword_worker.response_ready.connect(lambda keywords: self.on_query_keywords_extracted(user_query, keywords))
         self.query_keyword_worker.finished.connect(self.on_query_keyword_worker_finished)
         self.query_keyword_worker.start()
-
-    # ... (これ以降のメソッドは同様の考え方で修正されているため、確認してください) ...
     
     @Slot(str, str)
     def on_query_keywords_extracted(self, original_query: str, keywords_response: str):
         match = re.search(r'([\w\s、,]+)$', keywords_response, re.MULTILINE)
         cleaned_keywords_str = match.group(1).strip() if match else keywords_response.strip()
         cleaned_keywords = [kw.strip() for kw in cleaned_keywords_str.split(',') if kw.strip()]
-        
         if not self.active_session_id: return
-        
         relevant_sessions = self.db_manager.find_relevant_sessions(cleaned_keywords, exclude_session_id=self.active_session_id)
         long_term_context = self._get_long_term_context(relevant_sessions)
         monologue_history = self.db_manager.get_recent_logs_for_session(self.active_session_id, "monologue", 5)
         observation_log = self.db_manager.get_recent_logs_for_session(self.active_session_id, "observation", 5)
-        
         full_prompt = self.context_manager.build_prompt_for_query(original_query, self.current_chat_messages, monologue_history, observation_log, long_term_context)
         self.execute_ai_task(full_prompt, speak=True, is_user_request=True, is_continuation=True)
 
@@ -573,7 +528,6 @@ class MainWindow(QMainWindow):
         file_path, _ = QFileDialog.getOpenFileName(self, "問題ファイルを選択", "", "サポートファイル (*.pdf *.png *.jpg *.jpeg *.webp);;全ファイル (*)")
         if file_path:
             self._request_add_message("ai", f"`{os.path.basename(file_path)}`を分析中...")
-            
             model_name = self.settings_manager.vision_model
             gemini_client_for_file = GeminiClient(vision_model_name=model_name)
             self.file_worker = FileProcessingWorker(file_path, gemini_client_for_file)
@@ -614,27 +568,18 @@ class MainWindow(QMainWindow):
         if not self.active_session_id:
             self.tts_worker.speak("すみません、現在アクティブなセッションがありません。")
             return
-            
         if not self.latest_camera_frame:
             self.tts_worker.speak("すみません、カメラの映像が取得できていません。")
             return
-        
         self._request_add_message("user", f"（音声コマンド）{command_text}")
         self.context_manager.set_triggered_image(self.latest_camera_frame.copy())
-
         self.is_ai_task_running = True
         self.chat_panel.set_thinking_mode(True)
-
         long_term_context = self._get_long_term_context([])
         monologue_history = self.db_manager.get_recent_logs_for_session(self.active_session_id, "monologue", 5)
-        
         prompt_parts = self.context_manager.build_prompt_parts_for_command(
-            command_text, 
-            self.current_chat_messages, 
-            monologue_history, 
-            long_term_context
+            command_text, self.current_chat_messages, monologue_history, long_term_context
         )
-        
         if prompt_parts:
             self.execute_ai_task(prompt_parts, speak=True, is_user_request=False, use_vision=True, is_continuation=True)
         else:
@@ -649,15 +594,10 @@ class MainWindow(QMainWindow):
 
     @Slot(QImage, list)
     def update_camera_view(self, frame_qimage: QImage, detections: List[Dict]):
-        if frame_qimage.isNull():
-            return
-        
+        if frame_qimage.isNull(): return
         pixmap = QPixmap.fromImage(frame_qimage)
         painter = QPainter()
-
-        if not painter.begin(pixmap):
-            return
-
+        if not painter.begin(pixmap): return
         try:
             for detection in detections:
                 box = detection["box"]
@@ -674,42 +614,32 @@ class MainWindow(QMainWindow):
                 painter.drawText(text_x, text_y, label)
         finally:
             painter.end()
-
         self.camera_panel.set_pixmap(pixmap)
-        
         buffer = frame_qimage.constBits().tobytes()
         self.latest_camera_frame = Image.frombytes("RGBA", (frame_qimage.width(), frame_qimage.height()), buffer, 'raw', "BGRA")
 
     def closeEvent(self, event):
         print("アプリケーションの終了処理を開始します...")
-        
         if self.is_ai_task_running and self.ai_worker:
             print("実行中のAIタスクの完了を待ちます...")
             self.ai_worker.wait(5000)
-
         print("UI関連以外のワーカースレッドを停止します...")
         self.stop_camera_dependent_workers()
-        
         if self.stt_worker and self.stt_worker.isRunning():
             self.chat_panel.stt_toggled.disconnect(self.on_stt_enabled_changed)
             self.stt_worker.stop()
             self.stt_worker.wait()
             print(" > STTWorker 停止完了")
-        
         if self.tts_worker and self.tts_worker.isRunning():
             self.tts_worker.stop()
             self.tts_worker.wait()
             print(" > TTSWorker 停止完了")
-            
         if self.active_session_id:
             print(f"セッションID {self.active_session_id} の最終処理を実行します...")
-            
             messages = self.db_manager.get_messages_for_session(self.active_session_id)
             if len(messages) >= 4:
                 conversation_text = "\n".join([f"{m['role']}: {m['content']}" for m in messages])
-                
                 main_gemini_client = GeminiClient(text_model_name=self.settings_manager.keyword_extraction_model)
-                
                 kw_prompt_template = self.settings_manager.keyword_extraction_from_history_prompt
                 kw_prompt = kw_prompt_template.format(conversation_text=conversation_text)
                 print(" > キーワードを抽出中...")
@@ -719,7 +649,6 @@ class MainWindow(QMainWindow):
                 cleaned_keywords = cleaned_keywords.replace("*", "").replace("`", "")
                 self.db_manager.update_session_keywords(self.active_session_id, cleaned_keywords)
                 print(f" > キーワードを保存しました: {cleaned_keywords}")
-
                 title_prompt_template = self.settings_manager.title_generation_prompt
                 title_prompt = title_prompt_template.format(conversation_text=conversation_text)
                 print(" > タイトルを生成中...")
@@ -727,11 +656,7 @@ class MainWindow(QMainWindow):
                 cleaned_title = title.strip().replace('"', '').replace("'", "").replace("*", "")
                 self.db_manager.update_session_title(self.active_session_id, cleaned_title)
                 print(f" > タイトルを保存しました: {cleaned_title}")
-                
-                # 要約も最後に実行
                 self._trigger_summary_generation(self.active_session_id)
-
-
         if self.db_worker and self.db_worker.isRunning():
             print("データベースへの書き込み完了を待っています...")
             while self.db_worker.tasks:
@@ -740,6 +665,5 @@ class MainWindow(QMainWindow):
             self.db_worker.stop()
             self.db_worker.wait()
             print(" > DatabaseWorker 停止完了")
-            
         print("すべての処理が安全に完了しました。アプリケーションを終了します。")
         super().closeEvent(event)
